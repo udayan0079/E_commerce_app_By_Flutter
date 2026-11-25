@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../app/app_constants.dart';
+import '../../../app/app_urls.dart';
 import '../../../data/services/auth_service.dart';
+import '../../../data/services/network_caller.dart';
 import '../auth/sign_in_screen.dart';
 import '../main_bottom_nav/main_bottom_nav_screen.dart';
 
@@ -20,6 +22,8 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    // Wake up Render free-tier backend early in background during splash
+    NetworkCaller.getRequest(url: AppUrls.categories);
     _navigateToNextScreen();
   }
 

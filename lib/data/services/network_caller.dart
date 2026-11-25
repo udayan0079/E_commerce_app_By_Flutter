@@ -1,36 +1,27 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 import 'package:http/http.dart' as http;
 import '../models/network_response.dart';
 
-/// Reusable HTTP client service supporting GET, POST, PATCH, and DELETE with request timeout.
+/// Reusable HTTP client service supporting GET, POST, PATCH, and DELETE
+/// with generous timeout for cold-starting cloud servers (e.g. Render free tier).
 class NetworkCaller {
-  static const Duration _timeoutDuration = Duration(seconds: 15);
+  static const Duration _timeoutDuration = Duration(seconds: 45);
 
   /// Execute GET Request
   static Future<NetworkResponse> getRequest({
     required String url,
     String? token,
-  }) async {
-    try {
-      log('GET Request: $url');
-      final response = await http
-          .get(
-            Uri.parse(url),
-            headers: _buildHeaders(token),
-          )
-          .timeout(_timeoutDuration);
-
-      log('Response [${response.statusCode}]: ${response.body}');
-      return _handleResponse(response);
-    } catch (e) {
-      log('GET Error on $url: $e');
-      return NetworkResponse(
-        statusCode: -1,
-        isSuccess: false,
-        errorMessage: e.toString(),
-      );
-    }
+  }) {
+    return _executeRequest(
+      method: 'GET',
+      url: url,
+      request: () => http.get(
+        Uri.parse(url),
+        headers: _buildHeaders(token),
+      ),
+    );
   }
 
   /// Execute POST Request
@@ -38,27 +29,17 @@ class NetworkCaller {
     required String url,
     Map<String, dynamic>? body,
     String? token,
-  }) async {
-    try {
-      log('POST Request: $url, Body: $body');
-      final response = await http
-          .post(
-            Uri.parse(url),
-            headers: _buildHeaders(token),
-            body: jsonEncode(body),
-          )
-          .timeout(_timeoutDuration);
-
-      log('Response [${response.statusCode}]: ${response.body}');
-      return _handleResponse(response);
-    } catch (e) {
-      log('POST Error on $url: $e');
-      return NetworkResponse(
-        statusCode: -1,
-        isSuccess: false,
-        errorMessage: e.toString(),
-      );
-    }
+  }) {
+    return _executeRequest(
+      method: 'POST',
+      url: url,
+      body: body,
+      request: () => http.post(
+        Uri.parse(url),
+        headers: _buildHeaders(token),
+        body: jsonEncode(body),
+      ),
+    );
   }
 
   /// Execute PATCH Request
@@ -66,47 +47,54 @@ class NetworkCaller {
     required String url,
     Map<String, dynamic>? body,
     String? token,
-  }) async {
-    try {
-      log('PATCH Request: $url, Body: $body');
-      final response = await http
-          .patch(
-            Uri.parse(url),
-            headers: _buildHeaders(token),
-            body: jsonEncode(body),
-          )
-          .timeout(_timeoutDuration);
-
-      log('Response [${response.statusCode}]: ${response.body}');
-      return _handleResponse(response);
-    } catch (e) {
-      log('PATCH Error on $url: $e');
-      return NetworkResponse(
-        statusCode: -1,
-        isSuccess: false,
-        errorMessage: e.toString(),
-      );
-    }
+  }) {
+    return _executeRequest(
+      method: 'PATCH',
+      url: url,
+      body: body,
+      request: () => http.patch(
+        Uri.parse(url),
+        headers: _buildHeaders(token),
+        body: jsonEncode(body),
+      ),
+    );
   }
 
   /// Execute DELETE Request
   static Future<NetworkResponse> deleteRequest({
     required String url,
     String? token,
+  }) {
+    return _executeRequest(
+      method: 'DELETE',
+      url: url,
+      request: () => http.delete(
+        Uri.parse(url),
+        headers: _buildHeaders(token),
+      ),
+    );
+  }
+
+  static Future<NetworkResponse> _executeRequest({
+    required String method,
+    required String url,
+    Map<String, dynamic>? body,
+    required Future<http.Response> Function() request,
   }) async {
     try {
-      log('DELETE Request: $url');
-      final response = await http
-          .delete(
-            Uri.parse(url),
-            headers: _buildHeaders(token),
-          )
-          .timeout(_timeoutDuration);
-
+      log('$method Request: $url${body != null ? ', Body: $body' : ''}');
+      final response = await request().timeout(_timeoutDuration);
       log('Response [${response.statusCode}]: ${response.body}');
       return _handleResponse(response);
+    } on TimeoutException {
+      log('$method Timeout on $url');
+      return NetworkResponse(
+        statusCode: -1,
+        isSuccess: false,
+        errorMessage: 'Server is waking up or connection timed out. Please try again.',
+      );
     } catch (e) {
-      log('DELETE Error on $url: $e');
+      log('$method Error on $url: $e');
       return NetworkResponse(
         statusCode: -1,
         isSuccess: false,
