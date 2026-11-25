@@ -60,7 +60,6 @@ flutter:
 
   # Asset paths for images and icons
   assets:
-    - .env
     - assets/images/
     - assets/icons/
 
